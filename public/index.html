@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+  />
+  <title>纸牌房间</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 进入房间 -->
+    <section id="enterScreen" class="screen">
+      <h1>纸牌房间</h1>
+
+      <label>
+        昵称
+        <input id="nameInput" maxlength="12" placeholder="你的昵称" />
+      </label>
+
+      <label>
+        人数
+        <select id="maxPlayersSelect">
+          <option value="3">3人</option>
+          <option value="4" selected>4人</option>
+        </select>
+      </label>
+
+      <button id="createBtn">创建房间</button>
+
+      <div class="divider">或者</div>
+
+      <label>
+        房间码
+        <input id="roomCodeInput" maxlength="6" placeholder="例如 AB12C" />
+      </label>
+
+      <button id="joinBtn">加入房间</button>
+
+      <p id="enterError" class="error"></p>
+      <p class="hint">
+        把链接发到微信群，朋友点开即可加入。支持 3 人 / 4 人。
+      </p>
+    </section>
+
+    <!-- 房间大厅 -->
+    <section id="lobbyScreen" class="screen hidden">
+      <h2>房间：<span id="lobbyCode"></span></h2>
+      <p>人数：<span id="lobbyCount"></span></p>
+
+      <ul id="lobbyPlayers"></ul>
+
+      <button id="startBtn">开始游戏</button>
+
+      <p id="lobbyHint" class="hint"></p>
+      <p id="lobbyError" class="error"></p>
+    </section>
+
+    <!-- 游戏桌 -->
+    <section id="gameScreen" class="screen hidden">
+      <header>
+        <div>房间 <span id="gameCode"></span></div>
+        <div id="turnInfo"></div>
+        <button id="soundBtn">🔊 音效开</button>
+        <button id="musicBtn">🎵 音乐关</button>
+      </header>
+
+      <div id="playersBar"></div>
+
+      <div id="table">
+        <div id="lastPlayArea"></div>
+        <div id="rankingsArea"></div>
+      </div>
+
+      <div id="myArea">
+        <div id="myInfo"></div>
+        <div id="hand"></div>
+
+        <div id="actions">
+          <button id="playBtn">出牌</button>
+          <button id="passBtn">不要</button>
+          <button id="restartBtn" class="hidden">再来一局</button>
+        </div>
+
+        <p id="gameError" class="error"></p>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
