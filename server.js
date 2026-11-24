@@ -425,16 +425,14 @@ function getContext(socket) {
 }
 
 io.on('connection', socket => {
-  socket.on('createRoom', ({ name, maxPlayers, clientId }, cb) => {
+  socket.on('createRoom', ({ name, clientId }, cb) => {
     name = String(name || '').trim().slice(0, 12);
 
     if (!name) {
       return cb?.({ error: '请输入昵称' });
     }
 
-    const mp = Number(maxPlayers);
-    maxPlayers = mp === 3 || mp === 4 ? mp : 4;
-
+    const maxPlayers = 4;
     const code = genCode();
 
     const room = {
@@ -538,8 +536,12 @@ io.on('connection', socket => {
       return cb?.({ error: '只有房主可以开始游戏' });
     }
 
-    if (room.players.length !== room.maxPlayers) {
-      return cb?.({ error: `需要 ${room.maxPlayers} 人才能开始` });
+    if (room.players.length < 3) {
+      return cb?.({ error: '至少需要3人才能开始' });
+    }
+
+    if (room.players.length > 4) {
+      return cb?.({ error: '人数不能超过4人' });
     }
 
     if (room.started && !room.gameOver) {
