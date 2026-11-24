@@ -150,7 +150,7 @@ function render() {
 function renderLobby() {
   $('lobbyCode').textContent = gameState.code;
   $('lobbyCount').textContent =
-    `${gameState.players.length}/${gameState.maxPlayers}`;
+    `${gameState.players.length}/4`;
 
   const ul = $('lobbyPlayers');
   ul.innerHTML = '';
@@ -167,17 +167,23 @@ function renderLobby() {
   });
 
   const isHost = gameState.isHost;
-  const full =
-    gameState.players.length === gameState.maxPlayers;
+  const canStart = gameState.players.length >= 3;
 
   $('startBtn').classList.toggle('hidden', !isHost);
-  $('startBtn').disabled = !full;
+  $('startBtn').disabled = !canStart;
 
-  $('lobbyHint').textContent = full
-    ? isHost
+  if (gameState.players.length < 3) {
+    $('lobbyHint').textContent =
+      `还差 ${3 - gameState.players.length} 人（至少3人才能开始）`;
+  } else if (gameState.players.length === 3) {
+    $('lobbyHint').textContent = isHost
+      ? '已有3人，可以开始，第4人不能再加入'
+      : '已有3人，等待房主开始；开始后第4人不能加入';
+  } else {
+    $('lobbyHint').textContent = isHost
       ? '人齐了，可以开始'
-      : '等待房主开始'
-    : `还差 ${gameState.maxPlayers - gameState.players.length} 人`;
+      : '等待房主开始';
+  }
 }
 
 function renderPlayers() {
@@ -576,14 +582,12 @@ $('createBtn').onclick = () => {
     return showError('enterError', '请输入昵称');
   }
 
-  const maxPlayers = Number($('maxPlayersSelect').value);
-
   myName = name;
   localStorage.setItem('cardName', myName);
 
   socket.emit(
     'createRoom',
-    { name, maxPlayers, clientId },
+    { name, clientId },
     res => {
       if (res?.error) {
         return showError('enterError', res.error);
