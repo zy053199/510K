@@ -314,76 +314,190 @@ function renderGame() {
   );
 }
 
-function speak(text) {
-  if (!soundOn || !('speechSynthesis' in window)) return;
+/* ===== 语音朗读开始 ===== */
 
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'zh-CN';
-  u.rate = 1.2;
+const RANK_CN = {
+  A: 'A',
+  2: '二',
+  3: '三',
+  4: '四',
+  5: '五',
+  6: '六',
+  7: '七',
+  8: '八',
+  9: '九',
+  10: '十',
+  J: 'J',
+  Q: 'Q',
+  K: 'K'
+};
 
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+const SUIT_CN = {
+  S: '黑桃',
+  H: '红桃',
+  C: '梅花',
+  D: '方块'
+};
+
+const RANK_ORDER = [
+  '4', '5', '6', '7', '8', '9', '10',
+  'J', 'Q', 'K', 'A', '2', '3'
+];
+
+let speechUnlocked = false;
+
+function unlockSpeech() {
+  if (speechUnlocked) return;
+  if (!('speechSynthesis' in window)) return;
+
+  try {
+    const u = new SpeechSynthesisUtterance('');
+    u.volume = 0;
+    speechSynthesis.speak(u);
+    speechUnlocked = true;
+    console.log('语音已解锁');
+  } catch (e) {
+    console.warn('语音解锁失败', e);
+  }
 }
 
-function playSpeech(action) {
-  const names = {
-    '4': '四',
-    '5': '五',
-    '6': '六',
-    '7': '七',
-    '8': '八',
-    '9': '九',
-    '10': '十',
-    'J': 'J',
-    'Q': 'Q',
-    'K': 'K',
-    'A': 'A',
-    '2': '二',
-    '3': '三'
-  };
+document.addEventListener('touchstart', unlockSpeech, { once: true });
+document.addEventListener('click', unlockSpeech, { once: true });
 
+function cnRank(r) {
+  return RANK_CN[r] || r;
+}
+
+function sortRanks(ranks) {
+  return [...new Set(ranks)].sort(
+    (a, b) => RANK_ORDER.indexOf(a) - RANK_ORDER.indexOf(b)
+  );
+}
+
+function buildSpeechText(action) {
   const a = action.analysis;
   const cards = action.cards || [];
 
-  if (!a) return '出牌';
+  if (!a || !cards.length) return '出牌';
 
-  if (a.type === 'SINGLE') {
-    return names[cards[0].rank];
+  const ranks = cards.map(c => c.rank);
+  const counts = {};
+
+  ranks.forEach(r => {
+    counts[r] = (counts[r] || 0) + 1;
+  });
+
+  const distinct = Object.keys(counts);
+
+  switch (a.type) {
+    case 'SINGLE':
+      return cnRank(cards[0].rank);
+
+    case 'PAIR':
+      return '对' + cnRank(cards[0].rank);
+
+    case 'BOMB':
+      return '炸弹，四个' + cnRank(cards[0].rank);
+
+    case 'FIVE_TEN_K': {
+      const suit = a.pure ? (SUIT_CN[cards[0].suit] || '') : '';
+      return suit + '五十K';
+    }
+
+    case 'TRIPLE_ONE': {
+      const triple = distinct.find(r => counts[r] === 3);
+      const single = distinct.find(r => counts[r] === 1);
+      return '三带一，三个' + cnRank(triple) + '带' + cnRank(single);
+    }
+
+    case 'TRIPLE_TWO': {
+      const triple = distinct.find(r => counts[r] === 3);
+      const pair = distinct.find(r => counts[r] === 2);
+      return '三带二，三个' + cnRank(triple) + '带对' + cnRank(pair);
+    }
+
+    case 'STRAIGHT': {
+      const s = sortRanks(ranks);
+      if (s.length <= 3) {
+        return '顺子，' + s.map(cnRank).join('');
+      }
+      return '顺子，' + cnRank(s[0]) + '到' + cnRank(s[s.length - 1]);
+    }
+
+    case 'CONSEC_PAIRS': {
+      const s = sortRanks(ranks);
+      if (s.length <= 3) {
+        return '连对，' + s.map(cnRank).join('');
+      }
+      return '连对，' + cnRank(s[0]) + '到' + cnRank(s[s.length - 1]);
+    }
+
+    default:
+      return '出牌';
+  }
+}
+
+function speak(text, onEnd) {
+  if (!soundOn || !text) {
+    if (onEnd) onEnd();
+    return;
   }
 
-  if (a.type === 'PAIR') {
-    return '对' + names[cards[0].rank];
+  if (!('speechSynthesis' in window)) {
+    if (onEnd) onEnd();
+    return;
   }
 
-  if (a.type === 'BOMB') {
-    return '炸弹，四个' + names[cards[0].rank];
+  try {
+    speechSynthesis.cancel();
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 1.1;
+    u.pitch = 1;
+    u.volume = 1;
+
+    if (onEnd) {
+      u.onend = () => onEnd();
+    }
+
+    speechSynthesis.speak(u);
+  } catch (e) {
+    console.warn('语音播放失败', e);
+    if (onEnd) onEnd();
   }
-
-  if (a.type === 'FIVE_TEN_K') {
-    return (a.pure ? '纯色' : '') + '五十K';
-  }
-
-  if (a.type === 'TRIPLE_ONE') return '三带一';
-  if (a.type === 'TRIPLE_TWO') return '三带二';
-  if (a.type === 'STRAIGHT') return '顺子';
-  if (a.type === 'CONSEC_PAIRS') return '连对';
-
-  return '出牌';
 }
 
 function handleAction(action) {
   if (!action) return;
 
   if (action.type === 'play') {
-    speak(playSpeech(action));
-  } else if (action.type === 'pass') {
+    speak(buildSpeechText(action));
+    return;
+  }
+
+  if (action.type === 'gameover') {
+    if (action.cards && action.cards.length && action.analysis) {
+      speak(buildSpeechText(action), () => {
+        speak('本局结束');
+      });
+    } else {
+      speak('本局结束');
+    }
+    return;
+  }
+
+  if (action.type === 'pass') {
     speak('不要');
-  } else if (action.type === 'deal') {
+    return;
+  }
+
+  if (action.type === 'deal') {
     speak('开始发牌');
-  } else if (action.type === 'gameover') {
-    speak('本局结束');
   }
 }
+
+/* ===== 语音朗读结束 ===== */
 
 function startMusic() {
   if (!audioCtx) {
@@ -572,6 +686,11 @@ $('soundBtn').onclick = () => {
   $('soundBtn').textContent = soundOn
     ? '🔊 音效开'
     : '🔇 音效关';
+
+  if (soundOn) {
+    unlockSpeech();
+    speak('音效已开启');
+  }
 };
 
 // 音乐开关
