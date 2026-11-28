@@ -169,6 +169,17 @@ function analyzePlay(cards, playerCount) {
     };
   }
 
+  // 三张（不带牌）
+  if (n === 3 && distinct.length === 1) {
+    return {
+      ok: true,
+      type: 'TRIPLE',
+      power: RANK_POWER[ranks[0]],
+      rank: ranks[0],
+      cards
+    };
+  }
+
   // 三带一 / 三带二
   if (n === 4 || n === 5) {
     const tripleEntry = groups.find(([r, c]) => c === 3);
