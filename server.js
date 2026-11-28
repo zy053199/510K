@@ -593,4 +593,189 @@ io.on('connection', socket => {
   });
 
   socket.on('playCards', ({ cardIds }, cb) => {
-    const { room
+    const { room, playerIndex, player } = getContext(socket);
+
+    if (!room || !player) {
+      return cb?.({ error: '你不在房间里' });
+    }
+
+    if (!room.started || room.gameOver) {
+      return cb?.({ error: '当前不能出牌' });
+    }
+
+    if (room.currentTurn !== playerIndex) {
+      return cb?.({ error: '还没轮到你' });
+    }
+
+    if (!Array.isArray(cardIds) || cardIds.length === 0) {
+      return cb?.({ error: '请选择要出的牌' });
+    }
+
+    const cards = [];
+
+    for (const id of cardIds) {
+      const card = player.hand.find(c => c.id === id);
+
+      if (!card) {
+        return cb?.({ error: '选牌无效' });
+      }
+
+      if (!cards.some(c => c.id === id)) {
+        cards.push(card);
+      }
+    }
+
+    if (cards.length !== cardIds.length) {
+      return cb?.({ error: '选牌重复或无效' });
+    }
+
+    const analysis = analyzePlay(cards, room.players.length);
+
+    if (!analysis.ok) {
+      return cb?.({ error: analysis.msg });
+    }
+
+    if (room.firstPlay && !containsHeart4(cards)) {
+      return cb?.({ error: '第一手必须包含红桃4' });
+    }
+
+    if (!canBeat(analysis, room.lastPlay ? room.lastPlay.analysis : null)) {
+      return cb?.({ error: '这手牌压不过上家' });
+    }
+
+    const ids = new Set(cardIds);
+    player.hand = player.hand.filter(c => !ids.has(c.id));
+
+    room.lastPlay = {
+      playerIndex,
+      cards,
+      analysis
+    };
+
+    room.passCount = 0;
+    room.firstPlay = false;
+
+    let action = {
+      type: 'play',
+      playerIndex,
+      playerName: player.name,
+      cards,
+      analysis: {
+        type: analysis.type,
+        rank: analysis.rank,
+        pure: analysis.pure,
+        suit: analysis.suit
+      }
+    };
+
+    if (player.hand.length === 0) {
+      player.finished = true;
+      player.rankOrder = room.rankings.length + 1;
+      room.rankings.push(playerIndex);
+
+      if (room.rankings.length === room.players.length - 1) {
+        const lastIndex = room.players.findIndex(
+          (p, i) => !room.rankings.includes(i)
+        );
+
+        if (lastIndex !== -1) {
+          room.players[lastIndex].rankOrder = room.players.length;
+          room.rankings.push(lastIndex);
+          room.gameOver = true;
+          room.nextDealerIndex = lastIndex;
+
+          action.type = 'gameover';
+          action.rankings = room.rankings.map(i => room.players[i].name);
+        }
+      }
+    }
+
+    if (!room.gameOver) {
+      room.currentTurn = nextActiveIndex(room, playerIndex);
+    }
+
+    io.to(room.code).emit('action', action);
+    emitState(room);
+    cb?.({ ok: true });
+  });
+
+  socket.on('passTurn', (data, cb) => {
+    const { room, playerIndex, player } = getContext(socket);
+
+    if (!room || !player) {
+      return cb?.({ error: '你不在房间里' });
+    }
+
+    if (!room.started || room.gameOver) {
+      return cb?.({ error: '当前不能操作' });
+    }
+
+    if (room.currentTurn !== playerIndex) {
+      return cb?.({ error: '还没轮到你' });
+    }
+
+    if (!room.lastPlay) {
+      return cb?.({ error: '新一轮必须出牌，不能不要' });
+    }
+
+    room.passCount += 1;
+
+    const activeCount = room.players.filter(p => !p.finished).length;
+    const lastPlayerIndex = room.lastPlay.playerIndex;
+    const lastPlayerActive = !room.players[lastPlayerIndex].finished;
+
+    const requiredPasses = lastPlayerActive
+      ? activeCount - 1
+      : activeCount;
+
+    if (room.passCount >= requiredPasses) {
+      room.lastPlay = null;
+      room.passCount = 0;
+
+      if (lastPlayerActive) {
+        room.currentTurn = lastPlayerIndex;
+      } else {
+        room.currentTurn = nextActiveIndex(room, lastPlayerIndex);
+      }
+    } else {
+      room.currentTurn = nextActiveIndex(room, playerIndex);
+    }
+
+    io.to(room.code).emit('action', {
+      type: 'pass',
+      playerIndex,
+      playerName: player.name
+    });
+
+    emitState(room);
+    cb?.({ ok: true });
+  });
+
+  socket.on('disconnect', () => {
+    const { room, playerIndex, player } = getContext(socket);
+
+    if (!room || !player) return;
+
+    player.connected = false;
+    player.socketId = null;
+
+    if (!room.started) {
+      room.players.splice(playerIndex, 1);
+
+      if (player.clientId === room.hostClientId) {
+        if (room.players.length > 0) {
+          room.hostClientId = room.players[0].clientId;
+        } else {
+          rooms.delete(room.code);
+          return;
+        }
+      }
+    }
+
+    emitState(room);
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`Server listening on ${PORT}`);
+});
