@@ -82,6 +82,8 @@ function describeAnalysis(a) {
       return '单张';
     case 'PAIR':
       return '对子';
+    case 'TRIPLE':
+      return '三张';
     case 'BOMB':
       return '炸弹';
     case 'BOMB_WITH_TWO':
@@ -403,6 +405,9 @@ function buildSpeechText(action) {
 
     case 'PAIR':
       return '对' + cnRank(cards[0].rank);
+
+    case 'TRIPLE':
+      return '三个' + cnRank(cards[0].rank);
 
     case 'BOMB':
       return '炸弹，四个' + cnRank(cards[0].rank);
