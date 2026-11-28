@@ -61,13 +61,14 @@ function sortHand(hand) {
 }
 
 function genCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  // 生成 5 位纯数字房间码，首位 1~9，避免前导 0
   let code;
 
   do {
-    code = Array.from({ length: 5 }, () => {
-      return chars[Math.floor(Math.random() * chars.length)];
-    }).join('');
+    code = String(1 + Math.floor(Math.random() * 9)) +
+      Array.from({ length: 4 }, () =>
+        String(Math.floor(Math.random() * 10))
+      ).join('');
   } while (rooms.has(code));
 
   return code;
@@ -496,14 +497,15 @@ io.on('connection', socket => {
   });
 
   socket.on('joinRoom', ({ code, name, clientId }, cb) => {
-    code = String(code || '').toUpperCase().trim();
-    name = String(name || '').trim().slice(0, 12);
+    code = String(code || '').trim();
 
     const room = rooms.get(code);
 
     if (!room) {
       return cb?.({ error: '房间不存在或已解散' });
     }
+
+    name = String(name || '').trim().slice(0, 12);
 
     let player = room.players.find(p => p.clientId === clientId);
 
