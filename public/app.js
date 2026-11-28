@@ -84,6 +84,8 @@ function describeAnalysis(a) {
       return '对子';
     case 'BOMB':
       return '炸弹';
+    case 'BOMB_WITH_TWO':
+      return '炸弹带两张';
     case 'FIVE_TEN_K':
       return a.pure ? '纯色五十K' : '五十K';
     case 'TRIPLE_ONE':
@@ -404,6 +406,16 @@ function buildSpeechText(action) {
 
     case 'BOMB':
       return '炸弹，四个' + cnRank(cards[0].rank);
+
+    case 'BOMB_WITH_TWO': {
+      const quad = distinct.find(r => counts[r] === 4);
+      const extras = distinct.filter(r => r !== quad);
+      const extraText =
+        extras.length === 1
+          ? '一对' + cnRank(extras[0])
+          : extras.map(cnRank).join('和');
+      return '炸弹带两张，四个' + cnRank(quad) + '带' + extraText;
+    }
 
     case 'FIVE_TEN_K': {
       const suit = a.pure ? (SUIT_CN[cards[0].suit] || '') : '';
