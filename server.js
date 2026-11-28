@@ -110,6 +110,21 @@ function analyzePlay(cards, playerCount) {
     };
   }
 
+  // 炸弹带两张：4 张同点 + 任意 2 张（共 6 张）
+  if (n === 6) {
+    const quadEntry = groups.find(([r, c]) => c === 4);
+
+    if (quadEntry) {
+      return {
+        ok: true,
+        type: 'BOMB_WITH_TWO',
+        power: RANK_POWER[quadEntry[0]],
+        rank: quadEntry[0],
+        cards
+      };
+    }
+  }
+
   // 5-10-K 组合
   if (
     n === 3 &&
@@ -159,20 +174,18 @@ function analyzePlay(cards, playerCount) {
     if (tripleEntry) {
       const tripleRank = tripleEntry[0];
 
+      // 三带一：三人局、四人局都允许
       if (n === 4) {
-        const other = groups.find(([r]) => r !== tripleRank);
-
-        if (other && other[1] === 1) {
-          return {
-            ok: true,
-            type: 'TRIPLE_ONE',
-            power: RANK_POWER[tripleRank],
-            rank: tripleRank,
-            cards
-          };
-        }
+        return {
+          ok: true,
+          type: 'TRIPLE_ONE',
+          power: RANK_POWER[tripleRank],
+          rank: tripleRank,
+          cards
+        };
       }
 
+      // 三带二：只有三人局允许
       if (n === 5) {
         if (playerCount !== 3) {
           return { ok: false, msg: '四人局不能出三带二' };
@@ -189,13 +202,15 @@ function analyzePlay(cards, playerCount) {
             cards
           };
         }
+
+        return { ok: false, msg: '三带二必须带一对' };
       }
     }
 
-    return { ok: false, msg: '牌型不合法' };
+    // 没有三张的 4/5 张牌，不要直接报错，继续往下尝试识别顺子
   }
 
-  // 顺子
+  // 顺子（3 张及以上，连续，范围 4~A，不含 2、3）
   if (n >= 3 && distinct.length === n) {
     if (!ranks.every(r => SEQ_POWER[r] !== undefined)) {
       return { ok: false, msg: '顺子不能包含 2 或 3' };
@@ -222,7 +237,7 @@ function analyzePlay(cards, playerCount) {
     }
   }
 
-  // 连对
+  // 连对（3 对及以上，连续，范围 4~A，不含 2、3）
   if (n >= 6 && n % 2 === 0) {
     const pairRanks = Object.keys(counts);
 
@@ -259,18 +274,19 @@ function analyzePlay(cards, playerCount) {
 function canBeat(candidate, previous) {
   if (!previous) return true;
 
-  // 炸弹最大
+  // 1. 普通炸弹最大
   if (candidate.type === 'BOMB') {
     if (previous.type === 'BOMB') {
       return candidate.power > previous.power;
     }
     return true;
   }
+  if (previous.type === 'BOMB') {
+    return false;
+  }
 
-  // 5-10-K 大于普通牌，小于炸弹
+  // 2. 5-10-K 次之，能压炸弹带两张和普通牌型
   if (candidate.type === 'FIVE_TEN_K') {
-    if (previous.type === 'BOMB') return false;
-
     if (previous.type === 'FIVE_TEN_K') {
       if (candidate.pure) {
         if (previous.pure) {
@@ -278,19 +294,28 @@ function canBeat(candidate, previous) {
         }
         return true;
       }
-
       // 非纯色之间同权，不能互压
       return false;
     }
-
     return true;
   }
-
-  // 普通牌不能压炸弹、5-10-K
-  if (previous.type === 'BOMB' || previous.type === 'FIVE_TEN_K') {
+  if (previous.type === 'FIVE_TEN_K') {
     return false;
   }
 
+  // 3. 炸弹带两张：独立牌型，只能压同类（比四张点数）
+  //    不压普通牌型，普通牌型也不压它
+  if (candidate.type === 'BOMB_WITH_TWO') {
+    return (
+      previous.type === 'BOMB_WITH_TWO' &&
+      candidate.power > previous.power
+    );
+  }
+  if (previous.type === 'BOMB_WITH_TWO') {
+    return false;
+  }
+
+  // 4. 普通牌型：必须同类型才能比
   if (candidate.type !== previous.type) return false;
 
   if (candidate.type === 'STRAIGHT') {
