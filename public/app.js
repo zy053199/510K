@@ -26,7 +26,7 @@ let musicTimer = null;
 const $ = id => document.getElementById(id);
 
 $('nameInput').value = myName;
-$('roomCodeInput').value = roomCode.toUpperCase();
+$('roomCodeInput').value = roomCode;
 
 function updateUrl(code) {
   const url = new URL(location.href);
@@ -614,14 +614,14 @@ $('createBtn').onclick = () => {
 // 加入房间
 $('joinBtn').onclick = () => {
   const name = $('nameInput').value.trim();
-  const code = $('roomCodeInput').value.trim().toUpperCase();
+  const code = $('roomCodeInput').value.trim();
 
   if (!name) {
     return showError('enterError', '请输入昵称');
   }
 
-  if (!code) {
-    return showError('enterError', '请输入房间码');
+  if (!/^\d{5}$/.test(code)) {
+    return showError('enterError', '请输入 5 位数字房间码');
   }
 
   myName = name;
