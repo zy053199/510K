@@ -94,6 +94,12 @@ function describeAnalysis(a) {
       return '三带一';
     case 'TRIPLE_TWO':
       return '三带二';
+    case 'PLANE':
+      return '飞机';
+    case 'PLANE_WITH_SINGLE':
+      return '飞机带单';
+    case 'PLANE_WITH_PAIRS':
+      return '飞机带对';
     case 'STRAIGHT':
       return '顺子';
     case 'CONSEC_PAIRS':
@@ -354,6 +360,8 @@ const RANK_ORDER = [
   'J', 'Q', 'K', 'A', '2', '3'
 ];
 
+const RANK_ORDER_CN = ['第一名', '第二名', '第三名', '第四名'];
+
 let speechUnlocked = false;
 
 function unlockSpeech() {
@@ -439,6 +447,41 @@ function buildSpeechText(action) {
       return '三带二，三个' + cnRank(triple) + '带对' + cnRank(pair);
     }
 
+    case 'PLANE':
+    case 'PLANE_WITH_SINGLE':
+    case 'PLANE_WITH_PAIRS': {
+      const triples = distinct
+        .filter(r => counts[r] === 3)
+        .sort(
+          (x, y) => RANK_ORDER.indexOf(x) - RANK_ORDER.indexOf(y)
+        );
+
+      const head =
+        triples.length === 1
+          ? '三个' + cnRank(triples[0])
+          : '三个' + cnRank(triples[0]) +
+            '到三个' + cnRank(triples[triples.length - 1]);
+
+      if (a.type === 'PLANE') {
+        return '飞机，' + head;
+      }
+
+      const extras = distinct.filter(r => counts[r] !== 3);
+
+      if (a.type === 'PLANE_WITH_SINGLE') {
+        return (
+          '飞机带单，' + head + '带' + extras.map(cnRank).join('和')
+        );
+      }
+
+      return (
+        '飞机带对，' +
+        head +
+        '带' +
+        extras.map(r => '对' + cnRank(r)).join('和')
+      );
+    }
+
     case 'STRAIGHT': {
       const s = sortRanks(ranks);
       if (s.length <= 3) {
@@ -458,6 +501,18 @@ function buildSpeechText(action) {
     default:
       return '出牌';
   }
+}
+
+function buildRankingsText(action) {
+  const list = action.rankings || [];
+  if (!list.length) return '';
+
+  const parts = list.map((name, i) => {
+    const order = RANK_ORDER_CN[i] || `第${i + 1}名`;
+    return `${order} ${name}`;
+  });
+
+  return '本局结束，' + parts.join('，');
 }
 
 function speak(text, onEnd) {
@@ -500,12 +555,15 @@ function handleAction(action) {
   }
 
   if (action.type === 'gameover') {
+    const rankText = buildRankingsText(action);
+    const finish = () => {
+      speak(rankText || '本局结束');
+    };
+
     if (action.cards && action.cards.length && action.analysis) {
-      speak(buildSpeechText(action), () => {
-        speak('本局结束');
-      });
+      speak(buildSpeechText(action), finish);
     } else {
-      speak('本局结束');
+      finish();
     }
     return;
   }
