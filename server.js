@@ -19,7 +19,7 @@ const RANK_POWER = Object.fromEntries(RANK_ORDER.map((r, i) => [r, i]));
 // 纯色 5-10-K 花色大小：黑桃 > 红桃 > 梅花 > 方块
 const SUIT_POWER = { S: 4, H: 3, C: 2, D: 1 };
 
-// 顺子、连对只能用 4 到 A
+// 顺子、连对、飞机只能用 4 到 A
 const SEQ_RANKS = ['4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 const SEQ_POWER = Object.fromEntries(SEQ_RANKS.map((r, i) => [r, i]));
 
@@ -223,6 +223,88 @@ function analyzePlay(cards, playerCount) {
     // 没有三张的 4/5 张牌，不要直接报错，继续往下尝试识别顺子
   }
 
+  // 飞机：L 个连续三张（L >= 2），可带单 / 带对
+  if (n >= 6) {
+    const tripleRanks = Object.keys(counts)
+      .filter(r => counts[r] === 3)
+      .sort((a, b) => SEQ_POWER[a] - SEQ_POWER[b]);
+
+    if (
+      tripleRanks.length >= 2 &&
+      tripleRanks.every(r => SEQ_POWER[r] !== undefined)
+    ) {
+      const sSeq = tripleRanks.map(r => SEQ_POWER[r]);
+
+      let sConsec = true;
+      for (let i = 1; i < sSeq.length; i++) {
+        if (sSeq[i] !== sSeq[i - 1] + 1) {
+          sConsec = false;
+          break;
+        }
+      }
+
+      if (sConsec) {
+        const L = tripleRanks.length;
+        const tripleSet = new Set(tripleRanks);
+
+        const remainingCounts = {};
+        for (const r of distinct) {
+          if (!tripleSet.has(r)) {
+            remainingCounts[r] = counts[r];
+          }
+        }
+
+        const remainTotal = n - L * 3;
+
+        // 纯飞机
+        if (remainTotal === 0) {
+          return {
+            ok: true,
+            type: 'PLANE',
+            power: sSeq[sSeq.length - 1],
+            length: L,
+            rank: tripleRanks[tripleRanks.length - 1],
+            cards
+          };
+        }
+
+        // 飞机带单：L 张单（三人局、四人局都允许）
+        if (remainTotal === L) {
+          return {
+            ok: true,
+            type: 'PLANE_WITH_SINGLE',
+            power: sSeq[sSeq.length - 1],
+            length: L,
+            rank: tripleRanks[tripleRanks.length - 1],
+            cards
+          };
+        }
+
+        // 飞机带对：L 对（只有三人局允许）
+        if (remainTotal === 2 * L) {
+          const allPairs = Object.values(remainingCounts).every(
+            c => c === 2
+          );
+
+          if (allPairs) {
+            if (playerCount !== 3) {
+              return { ok: false, msg: '四人局不能出飞机带对' };
+            }
+
+            return {
+              ok: true,
+              type: 'PLANE_WITH_PAIRS',
+              power: sSeq[sSeq.length - 1],
+              length: L,
+              rank: tripleRanks[tripleRanks.length - 1],
+              cards
+            };
+          }
+        }
+      }
+    }
+  }
+
   // 顺子（3 张及以上，连续，范围 4~A，不含 2、3）
   if (n >= 3 && distinct.length === n) {
     if (!ranks.every(r => SEQ_POWER[r] !== undefined)) {
@@ -331,14 +413,13 @@ function canBeat(candidate, previous) {
   // 4. 普通牌型：必须同类型才能比
   if (candidate.type !== previous.type) return false;
 
-  if (candidate.type === 'STRAIGHT') {
-    return (
-      candidate.length === previous.length &&
-      candidate.power > previous.power
-    );
-  }
-
-  if (candidate.type === 'CONSEC_PAIRS') {
+  if (
+    candidate.type === 'STRAIGHT' ||
+    candidate.type === 'CONSEC_PAIRS' ||
+    candidate.type === 'PLANE' ||
+    candidate.type === 'PLANE_WITH_SINGLE' ||
+    candidate.type === 'PLANE_WITH_PAIRS'
+  ) {
     return (
       candidate.length === previous.length &&
       candidate.power > previous.power
@@ -675,7 +756,8 @@ io.on('connection', socket => {
         type: analysis.type,
         rank: analysis.rank,
         pure: analysis.pure,
-        suit: analysis.suit
+        suit: analysis.suit,
+        length: analysis.length
       }
     };
 
