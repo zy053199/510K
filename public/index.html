@@ -26,14 +26,19 @@
 
       <label>
         房间码
-        <input id="roomCodeInput" maxlength="6" placeholder="例如 AB12C" />
+        <input
+          id="roomCodeInput"
+          maxlength="5"
+          inputmode="numeric"
+          placeholder="例如 12345"
+        />
       </label>
 
       <button id="joinBtn">加入房间</button>
 
       <p id="enterError" class="error"></p>
       <p class="hint">
-        最多 4 人，3 人即可开始。把链接发到微信群，朋友点开即可加入。
+        房间码为 5 位数字。最多 4 人，3 人即可开始；把链接发到微信群，朋友点开即可加入。
       </p>
     </section>
 
@@ -71,8 +76,8 @@
         <div id="hand"></div>
 
         <div id="actions">
-          <button id="playBtn">出牌</button>
           <button id="passBtn">不要</button>
+          <button id="playBtn">出牌</button>
           <button id="restartBtn" class="hidden">再来一局</button>
         </div>
 
